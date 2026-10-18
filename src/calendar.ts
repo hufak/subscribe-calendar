@@ -1,0 +1,35 @@
+export type Platform = 'android' | 'apple' | 'windows' | 'other';
+
+export function detectPlatform(userAgent: string, maxTouchPoints = 0): Platform {
+  if (/Android/i.test(userAgent)) return 'android';
+  if (/iPhone|iPad|iPod|Macintosh|Mac OS X/i.test(userAgent)) return 'apple';
+  // iPadOS can use a desktop-style user agent.
+  if (/Mac/i.test(userAgent) && maxTouchPoints > 1) return 'apple';
+  if (/Windows/i.test(userAgent)) return 'windows';
+  return 'other';
+}
+
+export function parseCalendar(search: string): URL {
+  const values = new URLSearchParams(search).getAll('url');
+  if (values.length === 0 || !values[0]?.trim()) {
+    throw new Error('This link is missing a calendar URL. Ask the calendar owner for a complete subscription link.');
+  }
+  if (values.length !== 1) throw new Error('This link contains more than one calendar URL. Please use a link with a single url parameter.');
+  let url: URL;
+  try { url = new URL(values[0]); }
+  catch { throw new Error('The calendar URL is not valid. Please ask the calendar owner for a new link.'); }
+  if (!['https:', 'http:', 'webcal:', 'webcals:'].includes(url.protocol) || !url.hostname) {
+    throw new Error('The calendar URL must start with https://, http://, webcal:// or webcals://.');
+  }
+  if (url.username || url.password) throw new Error('Please use a calendar URL without a username or password. Sign in inside your calendar app instead.');
+  // Reparse after replacing a custom scheme so URL applies HTTP URL rules.
+  return new URL(url.href.replace(/^webcals?:/i, 'https:'));
+}
+
+export function calendarLinks(url: URL) {
+  return {
+    webcal: url.href.replace(/^https?:/i, 'webcal:'),
+    davx5: url.href.replace(/^https?:/i, 'davx5:'),
+    google: `https://calendar.google.com/calendar/r?${new URLSearchParams({ cid: url.href })}`,
+  };
+}
