@@ -1,14 +1,50 @@
 <script lang="ts">
-  import { Accordion } from 'bits-ui';
+  import { tick } from 'svelte';
+  import { Accordion, Dialog } from 'bits-ui';
   import { calendarLinks, detectPlatform, parseCalendar, type Platform } from './calendar';
 
   let platform = $state<Platform>(detectPlatform(navigator.userAgent, navigator.maxTouchPoints));
   let calendar = $state<URL | undefined>();
   let error = $state('');
-  try { calendar = parseCalendar(window.location.search); }
-  catch (cause) { error = cause instanceof Error ? cause.message : 'Unable to read this calendar link.'; }
+  let errorOpen = $state(false);
+  try {
+    if (new URLSearchParams(window.location.search).has('url')) calendar = parseCalendar(window.location.search);
+  }
+  catch (cause) {
+    error = cause instanceof Error ? cause.message : 'Unable to read this calendar link.';
+    errorOpen = true;
+  }
+  let feedInput = $state<HTMLInputElement>();
   const links = $derived(calendar ? calendarLinks(calendar) : undefined);
   let status = $state('');
+  let enteredUrl = $state(new URLSearchParams(window.location.search).get('url') ?? '');
+  let checking = $state(false);
+  let heading = $state<HTMLHeadingElement>();
+
+  async function submitCalendar(event: SubmitEvent) {
+    event.preventDefault();
+    if (checking) return;
+    checking = true;
+    error = '';
+    try {
+      const candidate = parseCalendar(`?${new URLSearchParams({ url: enteredUrl.trim() })}`);
+      const { retrieveCalendar } = await import('./validate-calendar');
+      await retrieveCalendar(candidate);
+      const pageUrl = new URL(window.location.href);
+      pageUrl.searchParams.set('url', candidate.href);
+      window.history.replaceState(null, '', pageUrl);
+      calendar = candidate;
+      status = 'Calendar validated.';
+      await tick();
+      heading?.focus();
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : 'Unable to validate this calendar.';
+      errorOpen = true;
+    } finally {
+      checking = false;
+    }
+  }
+
   let urlInput = $state<HTMLInputElement>();
   const playStore = 'https://play.google.com/store/apps/details?id=at.bitfire.davdroid';
 
@@ -27,16 +63,17 @@
 <svelte:head><title>Subscribe to a calendar</title></svelte:head>
 
 <main>
-  <header class="brand"><span class="brand-mark" aria-hidden="true">▦</span> Calendar link</header>
   <section class="card" aria-labelledby="page-title">
-    <div class="eyebrow">A little more organized</div>
-    <h1 id="page-title">Your calendar,<br />one connection away.</h1>
-    <p class="intro">Keep upcoming events in the calendar you already use.</p>
+    <h1 id="page-title" bind:this={heading} tabindex="-1">Subscribe to a calendar</h1>
 
-    {#if error}
-      <div class="notice" role="alert"><h2>We couldn’t open this calendar</h2><p>{error}</p></div>
-      <p class="hint">A subscription link looks like <code>?url=https%3A%2F%2Fexample.org%2Fcalendar.ics</code>.</p>
-    {:else if calendar && links}
+    {#if !calendar}
+      <form onsubmit={submitCalendar} aria-busy={checking}>
+        <label class="label" for="feed-url">Calendar URL</label>
+        <input id="feed-url" bind:this={feedInput} type="url" bind:value={enteredUrl} required placeholder="https://example.org/calendar.ics" readonly={checking} />
+        <button class="primary" type="submit" disabled={checking}>{checking ? 'Checking calendar…' : 'Continue'}</button>
+        <p class="status" role="status">{checking ? 'Downloading and checking the calendar…' : ''}</p>
+      </form>
+    {:else if links}
       <div class="source"><span class="source-icon" aria-hidden="true">↗</span><div><span class="label">Calendar source</span><strong>{calendar.host}</strong></div></div>
       <label class="label" for="device">Your device</label>
       <select id="device" bind:value={platform}>
@@ -85,5 +122,21 @@
       </div>
     {/if}
   </section>
-  <footer>You choose the app. Your calendar stays with its provider.</footer>
 </main>
+
+<Dialog.Root bind:open={errorOpen}>
+  <Dialog.Portal>
+    <Dialog.Overlay class="dialog-overlay" />
+    <Dialog.Content
+      class="dialog-content"
+      onCloseAutoFocus={(event) => {
+        event.preventDefault();
+        feedInput?.focus();
+      }}
+    >
+      <Dialog.Title class="dialog-title">Unable to open calendar</Dialog.Title>
+      <Dialog.Description class="dialog-description">{error}</Dialog.Description>
+      <Dialog.Close class="primary dialog-close">Close</Dialog.Close>
+    </Dialog.Content>
+  </Dialog.Portal>
+</Dialog.Root>

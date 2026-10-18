@@ -1,6 +1,6 @@
 # Calendar subscription page
 
-A small static Svelte + TypeScript app with Bits UI's accessible accordion, built with Vite. Native links, buttons, a device selector, visible keyboard focus and live clipboard feedback keep the main flow simple. No backend, analytics, fonts or calendar fetching.
+A small static Svelte + TypeScript app with Bits UI's accessible accordion, built with Vite. Native links, buttons, a device selector, visible keyboard focus and live clipboard feedback keep the main flow simple. No backend, analytics or external fonts.
 
 ## Develop
 
@@ -44,3 +44,9 @@ Vite uses relative asset paths, so the build also works at a domain root or anot
 `npm run check` checks Svelte compiler warnings, including accessibility diagnostics; it is not a full TypeScript check. Full Svelte type checking is not configured because svelte-check requires an additional TypeScript version with the currently installed TypeScript 7. No additional TypeScript version was installed.
 
 The favicon is Google’s Material Design `calendar_today` icon, licensed under Apache 2.0. See `public/material-icons-LICENSE.txt` and https://github.com/google/material-design-icons.
+
+## Entering a calendar URL
+
+With no `url` parameter, the page shows a URL form. Submission downloads the feed without credentials, parses it with lazily loaded ical.js, checks the VCALENDAR structure and required VERSION/PRODID fields, and parses property values. After validation it updates the `url` query parameter and shows subscription options. This is a feed parsing check, not exhaustive RFC 5545 semantic conformance testing. Existing query links continue to open directly, including CalDAV URLs for DAVx⁵.
+
+Calendar servers must allow cross-origin requests (CORS) for the entry form to validate their feeds. A static GitHub Pages app cannot bypass that restriction. Network errors, HTTP failures, invalid content and timeouts leave the URL editable and do not update the query string.
