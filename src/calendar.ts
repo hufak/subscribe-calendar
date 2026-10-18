@@ -9,12 +9,12 @@ export function detectPlatform(userAgent: string, maxTouchPoints = 0): Platform 
   return 'other';
 }
 
-export function parseCalendar(search: string): URL {
-  const values = new URLSearchParams(search).getAll('url');
+export function parseCalendar(search: string, parameter: 'url' | 'dav' = 'url'): URL {
+  const values = new URLSearchParams(search).getAll(parameter);
   if (values.length === 0 || !values[0]?.trim()) {
     throw new Error('This link is missing a calendar URL. Ask the calendar owner for a complete subscription link.');
   }
-  if (values.length !== 1) throw new Error('This link contains more than one calendar URL. Please use a link with a single url parameter.');
+  if (values.length !== 1) throw new Error(`This link contains more than one calendar URL. Please use a link with a single ${parameter} parameter.`);
   let url: URL;
   try { url = new URL(values[0]); }
   catch { throw new Error('The calendar URL is not valid. Please ask the calendar owner for a new link.'); }
@@ -27,9 +27,21 @@ export function parseCalendar(search: string): URL {
 }
 
 export function calendarLinks(url: URL) {
+  const webcal = url.href.replace(/^https?:/i, 'webcal:');
   return {
-    webcal: url.href.replace(/^https?:/i, 'webcal:'),
+    webcal,
     davx5: url.href.replace(/^https?:/i, 'davx5:'),
-    google: `https://calendar.google.com/calendar/r?${new URLSearchParams({ cid: url.href })}`,
+    google: `https://calendar.google.com/calendar/r?${new URLSearchParams({ cid: webcal })}`,
   };
+}
+
+export function caldavAccount(url: URL): { url: URL; trimmed: boolean } {
+  const index = url.pathname.indexOf('/dav/');
+  const account = new URL(url.href);
+  if (index >= 0) {
+    account.pathname = account.pathname.slice(0, index + '/dav/'.length);
+    account.search = '';
+    account.hash = '';
+  }
+  return { url: account, trimmed: account.href !== url.href };
 }
